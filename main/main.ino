@@ -40,22 +40,24 @@ void setup() {
   Serial.println("PASS: '" + String(wifi_config.password) + "'");
   
   wifi_config_update();
-
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(wifi_config.ssid, wifi_config.password);
-  if (WiFi.waitForConnectResult() != WL_CONNECTED) {
-    Serial.println("WiFi Failed");
-    while(1) {
-      delay(1000);
-    }
-  } else {
-    Serial.print("Wifi Connected to ");
-    Serial.println(wifi_config.ssid);
-    Serial.println(WiFi.localIP());
-  }
+  wifi_connect();
 }
 
-boolean wifi_config_update() {
+void wifi_connect() {
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(wifi_config.ssid, wifi_config.password);
+  Serial.print("Wifi connecting to ");
+  Serial.print(String(wifi_config.ssid) + " .");
+
+  while(WiFi.status() != WL_CONNECTED) {
+    Serial.print(".");
+    delay(100);
+  }
+  Serial.println(" connected.");
+  Serial.println("Local IP: " + WiFi.localIP().toString());
+}
+
+void wifi_config_update() {
   unsigned int startMillis;
   String buffer_in;
   String tmp;
@@ -104,6 +106,10 @@ boolean wifi_config_update() {
 }
 
 void loop() {
+  // reconnect wifi
+  if (WiFi.status() == WL_DISCONNECTED) {
+    wifi_connect();
+  }
   Serial.println("Hello World!!");
   delay(1000);
 }
