@@ -1,3 +1,4 @@
+#include <Arduino.h>
 #include <EEPROM.h>
 #include "BluetoothSerial.h"
 #include "WiFi.h"
@@ -26,21 +27,6 @@ void save_wifi_config() {
   strcpy(wifi_config.check, DATA_VERSION);
   EEPROM.put<WIFI_CONFIG>(0, wifi_config);
   EEPROM.commit();
-}
-
-void setup() {
-  Serial.begin(9600);
-  EEPROM.begin(1024);
-  
-  Serial.println("=== Home Weather Station ===");
-  
-  load_wifi_config();
-  Serial.println("Loaded wifi config:");
-  Serial.println("SSID: '" + String(wifi_config.ssid) + "'");
-  Serial.println("PASS: '" + String(wifi_config.password) + "'");
-  
-  wifi_config_update();
-  wifi_connect();
 }
 
 void wifi_connect() {
@@ -103,6 +89,21 @@ void wifi_config_update() {
   ESP_BT.disconnect();
   delay(200);
   ESP_BT.end();
+}
+
+void setup() {
+  Serial.begin(9600);
+  EEPROM.begin(1024);
+  
+  Serial.println("=== Home Weather Station ===");
+  
+  load_wifi_config();
+  Serial.println("Loaded wifi config:");
+  Serial.println("SSID: '" + String(wifi_config.ssid) + "'");
+  Serial.println("PASS: '" + String(wifi_config.password) + "'");
+  
+  wifi_config_update();
+  wifi_connect();
 }
 
 void loop() {
