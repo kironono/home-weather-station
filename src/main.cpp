@@ -7,6 +7,7 @@
 #define WIFI_CONFIG_UPDATE 0
 #define WIFI_CONFIG_TIMEOUT 30
 #define WIND_SPD_PIN 14
+#define WIND_DIR_PIN 35
 
 BluetoothSerial ESP_BT;
 
@@ -21,6 +22,7 @@ volatile unsigned long timeSinceLastTick = 0;
 volatile unsigned long lastTick = 0;
 
 float windSpeed = 0.0;
+String windDir = "";
 
 void load_wifi_config() {
   EEPROM.get<WIFI_CONFIG>(0, wifi_config);
@@ -103,6 +105,29 @@ void wind_tick() {
   lastTick = millis();
 }
 
+// For the purposes of this calculation, 0deg is when the wind vane
+//  is pointed at the anemometer. The angle increases in a clockwise
+//  manner from there.
+void windDirCalc(int vin) {
+  if      (vin < 150) windDir = "112.5";
+  else if (vin < 220) windDir = "67.5";
+  else if (vin < 300) windDir = "90";
+  else if (vin < 400) windDir = "157.5";
+  else if (vin < 700) windDir = "135";
+  else if (vin < 900) windDir = "202.5";
+  else if (vin < 1100) windDir = "180";
+  else if (vin < 1600) windDir = "22.5";
+  else if (vin < 1800) windDir = "45";
+  else if (vin < 2300) windDir = "247.5";
+  else if (vin < 2500) windDir = "225";
+  else if (vin < 2800) windDir = "337.5";
+  else if (vin < 3100) windDir = "0";
+  else if (vin < 3300) windDir = "292.5";
+  else if (vin < 3600) windDir = "315";
+  else if (vin < 4000) windDir = "270";
+  else windDir = "0";
+}
+
 void setup() {
   Serial.begin(9600);
   EEPROM.begin(1024);
@@ -134,4 +159,9 @@ void loop() {
   Serial.print("Windspeed: ");
   Serial.print(windSpeed*1.492);
   Serial.println(" mph");
+
+  // Calculate the wind direction and display it as a string.
+  Serial.print("Wind dir: ");
+  windDirCalc(analogRead(WIND_DIR_PIN));
+  Serial.println(windDir);
 }
