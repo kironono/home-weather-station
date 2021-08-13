@@ -4,7 +4,9 @@
 #include "WiFi.h"
 
 #define DATA_VERSION "DATA1.0"
+#define WIFI_CONFIG_UPDATE 0
 #define WIFI_CONFIG_TIMEOUT 30
+#define WIND_SPD_PIN 14
 
 BluetoothSerial ESP_BT;
 
@@ -14,6 +16,11 @@ struct WIFI_CONFIG {
     char check[10];
 };
 WIFI_CONFIG wifi_config;
+
+volatile unsigned long timeSinceLastTick = 0;
+volatile unsigned long lastTick = 0;
+
+float windSpeed = 0.0;
 
 void load_wifi_config() {
   EEPROM.get<WIFI_CONFIG>(0, wifi_config);
@@ -91,6 +98,11 @@ void wifi_config_update() {
   ESP_BT.end();
 }
 
+void wind_tick() {
+  timeSinceLastTick = millis() - lastTick;
+  lastTick = millis();
+}
+
 void setup() {
   Serial.begin(9600);
   EEPROM.begin(1024);
@@ -102,8 +114,11 @@ void setup() {
   Serial.println("SSID: '" + String(wifi_config.ssid) + "'");
   Serial.println("PASS: '" + String(wifi_config.password) + "'");
   
-  wifi_config_update();
+  if (WIFI_CONFIG_UPDATE) wifi_config_update();
   wifi_connect();
+
+  pinMode(WIND_SPD_PIN, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(WIND_SPD_PIN), wind_tick, RISING);
 }
 
 void loop() {
@@ -111,6 +126,12 @@ void loop() {
   if (WiFi.status() == WL_DISCONNECTED) {
     wifi_connect();
   }
-  Serial.println("Hello World!!");
   delay(1000);
+
+  // Windspeed calculation, in mph. timeSinceLastTick gets updated by an
+  //  interrupt when ticks come in from the wind speed sensor.
+  if (timeSinceLastTick != 0) windSpeed = 1000.0/timeSinceLastTick;
+  Serial.print("Windspeed: ");
+  Serial.print(windSpeed*1.492);
+  Serial.println(" mph");
 }
