@@ -255,13 +255,16 @@ void loop()
   {
     outLoopTimer = millis();
 
-    // Windspeed calculation, in mph. timeSinceLastTick gets updated by an
+    // Windspeed calculation, in m/s. timeSinceLastTick gets updated by an
     //  interrupt when ticks come in from the wind speed sensor.
-    if (timeSinceLastTick != 0)
-      windSpeed = (1000.0 / timeSinceLastTick) * 2.4;
+    if ((millis() - lastTick) > 60000) {
+      windSpeed = 0;
+    } else if (timeSinceLastTick != 0) {
+      windSpeed = ((1000.0 / timeSinceLastTick) * 2.4 * 1000.0) / 3600.0;
+    }
     Serial.print("Windspeed: ");
     Serial.print(windSpeed);
-    Serial.println(" km/h");
+    Serial.println(" m/s");
 
     // Calculate the wind direction and display it as a string.
     Serial.print("Wind dir: ");
