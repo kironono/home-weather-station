@@ -13,6 +13,7 @@
 #define S_IN_DAY 86400
 #define S_IN_HR 3600
 #define NO_RAIN_SAMPLES 2000
+
 volatile long rainTickList[NO_RAIN_SAMPLES];
 volatile int rainTickIndex = 0;
 volatile int rainTicks = 0;
@@ -33,7 +34,7 @@ struct WIFI_CONFIG
 {
   char ssid[32];
   char password[32];
-  int  cid;
+  int cid;
   char writekey[32];
   char check[10];
 };
@@ -166,9 +167,6 @@ void rain_tick()
   rainTicks++;
 }
 
-// For the purposes of this calculation, 0deg is when the wind vane
-//  is pointed at the anemometer. The angle increases in a clockwise
-//  manner from there.
 void windDirCalc(int vin)
 {
   if (vin < 150)
@@ -255,23 +253,25 @@ void loop()
   {
     outLoopTimer = millis();
 
-    // Windspeed calculation, in m/s. timeSinceLastTick gets updated by an
-    //  interrupt when ticks come in from the wind speed sensor.
-    if ((millis() - lastTick) > 60000) {
+    // Calculate windspeed, in m/s.
+    if ((millis() - lastTick) > 60000)
+    {
       windSpeed = 0;
-    } else if (timeSinceLastTick != 0) {
+    }
+    else if (timeSinceLastTick != 0)
+    {
       windSpeed = ((1000.0 / timeSinceLastTick) * 2.4 * 1000.0) / 3600.0;
     }
     Serial.print("Windspeed: ");
     Serial.print(windSpeed);
     Serial.println(" m/s");
 
-    // Calculate the wind direction and display it as a string.
+    // Calculate the wind direction.
     Serial.print("Wind dir: ");
     windDirCalc(analogRead(WIND_DIR_PIN));
     Serial.println(windDir);
 
-    // Calculate and display rainfall totals.
+    // Calculate rainfall totals.
     Serial.print("Rainfall last hour: ");
     Serial.println(float(rainLastHour) * 0.2794, 3);
     Serial.print("Rainfall last day: ");
@@ -282,15 +282,10 @@ void loop()
     // Calculate the amount of rain in the last day and hour.
     rainLastHour = 0;
     rainLastDay = 0;
-    // If there are any captured rain sensor ticks...
     if (rainTicks > 0)
     {
-      // Start at the end of the list. rainTickIndex will always be one greater
-      //  than the number of captured samples.
       int i = rainTickIndex - 1;
 
-      // Iterate over the list and count up the number of samples that have been
-      //  captured with time stamps in the last hour.
       while ((rainTickList[i] >= secsClock - S_IN_HR) && rainTickList[i] != 0)
       {
         i--;
@@ -299,7 +294,6 @@ void loop()
         rainLastHour++;
       }
 
-      // Repeat the process, this time over days.
       i = rainTickIndex - 1;
       while ((rainTickList[i] >= secsClock - S_IN_DAY) && rainTickList[i] != 0)
       {
@@ -316,12 +310,13 @@ void loop()
   {
     dataUploadTimer = millis();
 
-    // reconnect wifi
+    // Reconnect wifi
     if (WiFi.status() == WL_DISCONNECTED)
     {
       wifi_connect();
     }
 
+    // Send to ambient
     ambient.set(1, float(rainLastHour) * 0.2794);
     ambient.set(2, float(rainLastDay) * 0.2794);
     ambient.set(3, windDir.c_str());
