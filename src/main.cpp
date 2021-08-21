@@ -3,6 +3,8 @@
 #include "BluetoothSerial.h"
 #include "WiFi.h"
 #include "Ambient.h"
+#include <Adafruit_Sensor.h>
+#include <Adafruit_BME280.h>
 
 #define DATA_VERSION "DATA1.0"
 #define WIFI_CONFIG_UPDATE 1
@@ -13,6 +15,8 @@
 #define S_IN_DAY 86400
 #define S_IN_HR 3600
 #define NO_RAIN_SAMPLES 2000
+
+#define SEALEVELPRESSURE_HPA (1013.25)
 
 volatile long rainTickList[NO_RAIN_SAMPLES];
 volatile int rainTickIndex = 0;
@@ -28,6 +32,11 @@ volatile unsigned long lastTick = 0;
 float windSpeed = 0.0;
 String windDir = "";
 
+float temperature = 0.0;
+float pressure = 0.0;
+float altitude = 0.0;
+float humidity = 0.0;
+
 BluetoothSerial ESP_BT;
 
 struct WIFI_CONFIG
@@ -42,6 +51,7 @@ WIFI_CONFIG wifi_config;
 
 WiFiClient client;
 Ambient ambient;
+Adafruit_BME280 bme;
 
 void load_wifi_config()
 {
@@ -212,6 +222,22 @@ void setup()
 
   Serial.println("=== Home Weather Station ===");
 
+  unsigned bme_status;
+  bme_status = bme.begin(0x76);
+  if (!bme_status) {
+    Serial.println("Could not find a valid BME280 sensor, check wiring, address, sensor ID!");
+    Serial.print("SensorID was: 0x"); Serial.println(bme.sensorID(),16);
+    Serial.print("        ID of 0xFF probably means a bad address, a BMP 180 or BMP 085\n");
+    Serial.print("   ID of 0x56-0x58 represents a BMP 280,\n");
+    Serial.print("        ID of 0x60 represents a BME 280.\n");
+    Serial.print("        ID of 0x61 represents a BME 680.\n");
+  }
+  bme.setSampling(Adafruit_BME280::MODE_FORCED,
+                  Adafruit_BME280::SAMPLING_X1, // temperature
+                  Adafruit_BME280::SAMPLING_X1, // pressure
+                  Adafruit_BME280::SAMPLING_X1, // humidity
+                  Adafruit_BME280::FILTER_OFF);
+
   load_wifi_config();
   Serial.println("Loaded wifi config:");
   Serial.println("SSID: '" + String(wifi_config.ssid) + "'");
@@ -304,6 +330,29 @@ void loop()
       }
       rainLastDayStart = i;
     }
+
+    // Calculate temperature, pressure, humidity
+    bme.takeForcedMeasurement();
+
+    temperature = bme.readTemperature();
+    Serial.print("Temperature = ");
+    Serial.print(temperature);
+    Serial.println(" °C");
+
+    pressure = bme.readPressure() / 100.0F;
+    Serial.print("Pressure = ");
+    Serial.print(pressure);
+    Serial.println(" hPa");
+
+    altitude = bme.readAltitude(SEALEVELPRESSURE_HPA);
+    Serial.print("Approx. Altitude = ");
+    Serial.print(altitude);
+    Serial.println(" m");
+
+    humidity = bme.readHumidity();
+    Serial.print("Humidity = ");
+    Serial.print(humidity);
+    Serial.println(" %");
   }
 
   if (millis() - dataUploadTimer >= 60000)
@@ -321,6 +370,9 @@ void loop()
     ambient.set(2, float(rainLastDay) * 0.2794);
     ambient.set(3, windDir.c_str());
     ambient.set(4, windSpeed);
+    ambient.set(5, temperature);
+    ambient.set(6, pressure);
+    ambient.set(7, humidity);
     ambient.send();
   }
 }
