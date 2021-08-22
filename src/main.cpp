@@ -1,10 +1,13 @@
 #include <Arduino.h>
 #include <EEPROM.h>
 #include "BluetoothSerial.h"
-#include "WiFi.h"
+#include <WiFi.h>
 #include "Ambient.h"
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BME280.h>
+#include <ESPmDNS.h>
+#include <WiFiUdp.h>
+#include <ArduinoOTA.h>
 
 #define DATA_VERSION "DATA1.0"
 #define WIFI_CONFIG_UPDATE 1
@@ -17,6 +20,7 @@
 #define NO_RAIN_SAMPLES 2000
 
 #define SEALEVELPRESSURE_HPA (1013.25)
+#define TEMPERATURE_DIFF -2
 
 volatile long rainTickList[NO_RAIN_SAMPLES];
 volatile int rainTickIndex = 0;
@@ -232,11 +236,12 @@ void setup()
     Serial.print("        ID of 0x60 represents a BME 280.\n");
     Serial.print("        ID of 0x61 represents a BME 680.\n");
   }
-  bme.setSampling(Adafruit_BME280::MODE_FORCED,
-                  Adafruit_BME280::SAMPLING_X1, // temperature
-                  Adafruit_BME280::SAMPLING_X1, // pressure
-                  Adafruit_BME280::SAMPLING_X1, // humidity
-                  Adafruit_BME280::FILTER_OFF);
+  bme.setSampling(Adafruit_BME280::MODE_NORMAL,
+                  Adafruit_BME280::SAMPLING_X2,  // temperature
+                  Adafruit_BME280::SAMPLING_X16, // pressure
+                  Adafruit_BME280::SAMPLING_X1,  // humidity
+                  Adafruit_BME280::FILTER_X16,
+                  Adafruit_BME280::STANDBY_MS_0_5);
 
   load_wifi_config();
   Serial.println("Loaded wifi config:");
@@ -248,6 +253,35 @@ void setup()
   if (WIFI_CONFIG_UPDATE)
     wifi_config_update();
   wifi_connect();
+
+  ArduinoOTA.setHostname("home-weather-station");
+  ArduinoOTA
+    .onStart([]() {
+      String type;
+      if (ArduinoOTA.getCommand() == U_FLASH)
+        type = "sketch";
+      else // U_SPIFFS
+        type = "filesystem";
+
+      // NOTE: if updating SPIFFS this would be the place to unmount SPIFFS using SPIFFS.end()
+      Serial.println("Start updating " + type);
+    })
+    .onEnd([]() {
+      Serial.println("\nEnd");
+    })
+    .onProgress([](unsigned int progress, unsigned int total) {
+      Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
+    })
+    .onError([](ota_error_t error) {
+      Serial.printf("Error[%u]: ", error);
+      if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
+      else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
+      else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
+      else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
+      else if (error == OTA_END_ERROR) Serial.println("End Failed");
+    });
+  ArduinoOTA.begin();
+  Serial.println("Arduino OTA begin");
 
   pinMode(WIND_SPD_PIN, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(WIND_SPD_PIN), wind_tick, RISING);
@@ -266,6 +300,8 @@ void loop()
   static unsigned long dataUploadTimer = 0;
   static unsigned long clockTimer = 0;
   static unsigned long tempMSClock = 0;
+
+  ArduinoOTA.handle();
 
   tempMSClock += millis() - clockTimer;
   clockTimer = millis();
@@ -332,9 +368,7 @@ void loop()
     }
 
     // Calculate temperature, pressure, humidity
-    bme.takeForcedMeasurement();
-
-    temperature = bme.readTemperature();
+    temperature = bme.readTemperature() + (TEMPERATURE_DIFF);
     Serial.print("Temperature = ");
     Serial.print(temperature);
     Serial.println(" °C");
