@@ -15,6 +15,7 @@
 #define WIND_SPD_PIN 14
 #define RAIN_PIN 15
 #define WIND_DIR_PIN 35
+#define BATT_VOLTAGE_PIN 34
 #define S_IN_DAY 86400
 #define S_IN_HR 3600
 #define NO_RAIN_SAMPLES 2000
@@ -40,6 +41,8 @@ float temperature = 0.0;
 float pressure = 0.0;
 float altitude = 0.0;
 float humidity = 0.0;
+
+long battVoltage = 0;
 
 BluetoothSerial ESP_BT;
 
@@ -304,6 +307,8 @@ void setup()
   for (int i = 0; i < NO_RAIN_SAMPLES; i++)
     rainTickList[i] = 0;
 
+  pinMode(BATT_VOLTAGE_PIN, ANALOG);
+
   ambient.begin(wifi_config.cid, wifi_config.writekey, &client);
 }
 
@@ -327,6 +332,12 @@ void loop()
   if (millis() - outLoopTimer >= 2000)
   {
     outLoopTimer = millis();
+
+    // Calculate Batt voltage
+    battVoltage = (analogReadMilliVolts(BATT_VOLTAGE_PIN) + 50) * 2;
+    Serial.print("BattVoltage: ");
+    Serial.print(battVoltage);
+    Serial.println(" mV");
 
     // Calculate windspeed, in m/s.
     if ((millis() - lastTick) > 60000)
@@ -420,6 +431,7 @@ void loop()
     ambient.set(5, temperature);
     ambient.set(6, pressure);
     ambient.set(7, humidity);
+    ambient.set(8, float(battVoltage));
     ambient.send();
   }
 }
