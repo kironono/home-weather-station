@@ -12,6 +12,12 @@ PlatformIO
 * [Weather Meter Kit](https://www.switch-science.com/catalog/6221/)
 * [BME280 Module](https://www.switch-science.com/catalog/2236/)
 
+## Dashboard
+
+The acquired sensor data is sent to [Ambient](https://ambidata.io/). You can build a dashboard like the one below.
+
+![Dashboard](docs/images/ambient_dashboard.png)
+
 ## License
 
 `Home-Weather-Station` is distributed under the terms of the MIT license.
