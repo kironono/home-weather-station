@@ -435,8 +435,5 @@ void loop()
     ambient.set(7, humidity);
     ambient.set(8, float(battVoltage));
     ambient.send();
-
-    // Disconnect Wifi
-    WiFi.disconnect(true);
   }
 }

@@ -6,6 +6,8 @@ Home-use meteorological observation device using ESP32.
 
 PlatformIO
 
+Check [platformio.ini](platformio.ini) for dependent libraries.
+
 ## Used hardware
 
 * [ESPr® Developer 32](https://www.switch-science.com/catalog/3210/)
