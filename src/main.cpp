@@ -22,7 +22,7 @@
 
 #define SEALEVELPRESSURE_HPA (1013.25)
 #define TEMPERATURE_DIFF -2
-#define BATT_VOLTAGE_DIFF 50
+#define BATT_VOLTAGE_DIFF 0
 #define BATT_VOLTAGE_DIVIDE_RATE 2 // 1/2
 
 volatile long rainTickList[NO_RAIN_SAMPLES];
