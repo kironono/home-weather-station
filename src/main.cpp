@@ -46,6 +46,8 @@ float humidity = 0.0;
 
 long battVoltage = 0;
 
+bool _handlingOTA = false;
+
 BluetoothSerial ESP_BT;
 
 struct WIFI_CONFIG
@@ -202,6 +204,10 @@ void setup_arduino_ota()
                  else // U_SPIFFS
                    type = "filesystem";
 
+                 _handlingOTA = true;
+                 detachInterrupt(digitalPinToInterrupt(WIND_SPD_PIN));
+                 detachInterrupt(digitalPinToInterrupt(RAIN_PIN));
+
                  // NOTE: if updating SPIFFS this would be the place to unmount SPIFFS using SPIFFS.end()
                  Serial.println("Start updating " + type);
                })
@@ -323,117 +329,120 @@ void loop()
 
   ArduinoOTA.handle();
 
-  tempMSClock += millis() - clockTimer;
-  clockTimer = millis();
-  while (tempMSClock >= 1000)
+  if (!_handlingOTA)
   {
-    secsClock++;
-    tempMSClock -= 1000;
-  }
-
-  if (millis() - outLoopTimer >= 2000)
-  {
-    outLoopTimer = millis();
-
-    // Calculate Batt voltage
-    battVoltage = (analogReadMilliVolts(BATT_VOLTAGE_PIN) + BATT_VOLTAGE_DIFF) * BATT_VOLTAGE_DIVIDE_RATE;
-    Serial.print("BattVoltage: ");
-    Serial.print(battVoltage);
-    Serial.println(" mV");
-
-    // Calculate windspeed, in m/s.
-    if ((millis() - lastTick) > 60000)
+    tempMSClock += millis() - clockTimer;
+    clockTimer = millis();
+    while (tempMSClock >= 1000)
     {
-      windSpeed = 0;
+      secsClock++;
+      tempMSClock -= 1000;
     }
-    else if (timeSinceLastTick != 0)
+
+    if (millis() - outLoopTimer >= 2000)
     {
-      windSpeed = ((1000.0 / timeSinceLastTick) * 2.4 * 1000.0) / 3600.0;
-    }
-    Serial.print("Windspeed: ");
-    Serial.print(windSpeed);
-    Serial.println(" m/s");
+      outLoopTimer = millis();
 
-    // Calculate the wind direction.
-    Serial.print("Wind dir: ");
-    windDirCalc(analogRead(WIND_DIR_PIN));
-    Serial.println(windDir);
+      // Calculate Batt voltage
+      battVoltage = (analogReadMilliVolts(BATT_VOLTAGE_PIN) + BATT_VOLTAGE_DIFF) * BATT_VOLTAGE_DIVIDE_RATE;
+      Serial.print("BattVoltage: ");
+      Serial.print(battVoltage);
+      Serial.println(" mV");
 
-    // Calculate rainfall totals.
-    Serial.print("Rainfall last hour: ");
-    Serial.println(float(rainLastHour) * 0.2794, 3);
-    Serial.print("Rainfall last day: ");
-    Serial.println(float(rainLastDay) * 0.2794, 3);
-    Serial.print("Rainfall to date: ");
-    Serial.println(float(rainTicks) * 0.2794, 3);
-
-    // Calculate the amount of rain in the last day and hour.
-    rainLastHour = 0;
-    rainLastDay = 0;
-    if (rainTicks > 0)
-    {
-      int i = rainTickIndex - 1;
-
-      while ((rainTickList[i] >= secsClock - S_IN_HR) && rainTickList[i] != 0)
+      // Calculate windspeed, in m/s.
+      if ((millis() - lastTick) > 60000)
       {
-        i--;
-        if (i < 0)
-          i = NO_RAIN_SAMPLES - 1;
-        rainLastHour++;
+        windSpeed = 0;
+      }
+      else if (timeSinceLastTick != 0)
+      {
+        windSpeed = ((1000.0 / timeSinceLastTick) * 2.4 * 1000.0) / 3600.0;
+      }
+      Serial.print("Windspeed: ");
+      Serial.print(windSpeed);
+      Serial.println(" m/s");
+
+      // Calculate the wind direction.
+      Serial.print("Wind dir: ");
+      windDirCalc(analogRead(WIND_DIR_PIN));
+      Serial.println(windDir);
+
+      // Calculate rainfall totals.
+      Serial.print("Rainfall last hour: ");
+      Serial.println(float(rainLastHour) * 0.2794, 3);
+      Serial.print("Rainfall last day: ");
+      Serial.println(float(rainLastDay) * 0.2794, 3);
+      Serial.print("Rainfall to date: ");
+      Serial.println(float(rainTicks) * 0.2794, 3);
+
+      // Calculate the amount of rain in the last day and hour.
+      rainLastHour = 0;
+      rainLastDay = 0;
+      if (rainTicks > 0)
+      {
+        int i = rainTickIndex - 1;
+
+        while ((rainTickList[i] >= secsClock - S_IN_HR) && rainTickList[i] != 0)
+        {
+          i--;
+          if (i < 0)
+            i = NO_RAIN_SAMPLES - 1;
+          rainLastHour++;
+        }
+
+        i = rainTickIndex - 1;
+        while ((rainTickList[i] >= secsClock - S_IN_DAY) && rainTickList[i] != 0)
+        {
+          i--;
+          if (i < 0)
+            i = NO_RAIN_SAMPLES - 1;
+          rainLastDay++;
+        }
+        rainLastDayStart = i;
       }
 
-      i = rainTickIndex - 1;
-      while ((rainTickList[i] >= secsClock - S_IN_DAY) && rainTickList[i] != 0)
-      {
-        i--;
-        if (i < 0)
-          i = NO_RAIN_SAMPLES - 1;
-        rainLastDay++;
-      }
-      rainLastDayStart = i;
+      // Calculate temperature, pressure, humidity
+      temperature = bme.readTemperature() + (TEMPERATURE_DIFF);
+      Serial.print("Temperature = ");
+      Serial.print(temperature);
+      Serial.println(" °C");
+
+      pressure = bme.readPressure() / 100.0F;
+      Serial.print("Pressure = ");
+      Serial.print(pressure);
+      Serial.println(" hPa");
+
+      altitude = bme.readAltitude(SEALEVELPRESSURE_HPA);
+      Serial.print("Approx. Altitude = ");
+      Serial.print(altitude);
+      Serial.println(" m");
+
+      humidity = bme.readHumidity();
+      Serial.print("Humidity = ");
+      Serial.print(humidity);
+      Serial.println(" %");
     }
 
-    // Calculate temperature, pressure, humidity
-    temperature = bme.readTemperature() + (TEMPERATURE_DIFF);
-    Serial.print("Temperature = ");
-    Serial.print(temperature);
-    Serial.println(" °C");
-
-    pressure = bme.readPressure() / 100.0F;
-    Serial.print("Pressure = ");
-    Serial.print(pressure);
-    Serial.println(" hPa");
-
-    altitude = bme.readAltitude(SEALEVELPRESSURE_HPA);
-    Serial.print("Approx. Altitude = ");
-    Serial.print(altitude);
-    Serial.println(" m");
-
-    humidity = bme.readHumidity();
-    Serial.print("Humidity = ");
-    Serial.print(humidity);
-    Serial.println(" %");
-  }
-
-  if (millis() - dataUploadTimer >= 60000)
-  {
-    dataUploadTimer = millis();
-
-    // Reconnect wifi
-    if (WiFi.status() == WL_DISCONNECTED)
+    if (millis() - dataUploadTimer >= 60000)
     {
-      wifi_connect();
-    }
+      dataUploadTimer = millis();
 
-    // Send to ambient
-    ambient.set(1, float(rainLastHour) * 0.2794);
-    ambient.set(2, float(rainLastDay) * 0.2794);
-    ambient.set(3, windDir.c_str());
-    ambient.set(4, windSpeed);
-    ambient.set(5, temperature);
-    ambient.set(6, pressure);
-    ambient.set(7, humidity);
-    ambient.set(8, float(battVoltage));
-    ambient.send();
+      // Reconnect wifi
+      if (WiFi.status() == WL_DISCONNECTED)
+      {
+        wifi_connect();
+      }
+
+      // Send to ambient
+      ambient.set(1, float(rainLastHour) * 0.2794);
+      ambient.set(2, float(rainLastDay) * 0.2794);
+      ambient.set(3, windDir.c_str());
+      ambient.set(4, windSpeed);
+      ambient.set(5, temperature);
+      ambient.set(6, pressure);
+      ambient.set(7, humidity);
+      ambient.set(8, float(battVoltage));
+      ambient.send();
+    }
   }
 }
